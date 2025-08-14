@@ -18,15 +18,15 @@ import postgres from 'postgres';
 import {
   user,
   chat,
-  type User,
   document,
-  type Suggestion,
   suggestion,
   message,
   vote,
-  type DBMessage,
-  type Chat,
   stream,
+  type User,
+  type Chat,
+  type Suggestion,
+  type Message,
 } from './schema';
 import type { ArtifactKind } from '@/components/artifact';
 import { generateUUID } from '../utils';
@@ -94,8 +94,8 @@ export async function saveChat({
   try {
     return await db.insert(chat).values({
       id,
-      createdAt: new Date(),
-      userId,
+      created_at: new Date(),
+      user_id: userId,
       title,
       visibility,
     });
@@ -106,9 +106,9 @@ export async function saveChat({
 
 export async function deleteChatById({ id }: { id: string }) {
   try {
-    await db.delete(vote).where(eq(vote.chatId, id));
-    await db.delete(message).where(eq(message.chatId, id));
-    await db.delete(stream).where(eq(stream.chatId, id));
+    await db.delete(vote).where(eq(vote.chat_id, id));
+    await db.delete(message).where(eq(message.chat_id, id));
+    await db.delete(stream).where(eq(stream.chat_id, id));
 
     const [chatsDeleted] = await db
       .delete(chat)
@@ -143,10 +143,10 @@ export async function getChatsByUserId({
         .from(chat)
         .where(
           whereCondition
-            ? and(whereCondition, eq(chat.userId, id))
-            : eq(chat.userId, id),
+            ? and(whereCondition, eq(chat.user_id, id))
+            : eq(chat.user_id, id),
         )
-        .orderBy(desc(chat.createdAt))
+        .orderBy(desc(chat.created_at))
         .limit(extendedLimit);
 
     let filteredChats: Array<Chat> = [];
@@ -165,7 +165,7 @@ export async function getChatsByUserId({
         );
       }
 
-      filteredChats = await query(gt(chat.createdAt, selectedChat.createdAt));
+      filteredChats = await query(gt(chat.created_at, selectedChat.created_at));
     } else if (endingBefore) {
       const [selectedChat] = await db
         .select()
@@ -180,7 +180,7 @@ export async function getChatsByUserId({
         );
       }
 
-      filteredChats = await query(lt(chat.createdAt, selectedChat.createdAt));
+      filteredChats = await query(lt(chat.created_at, selectedChat.created_at));
     } else {
       filteredChats = await query();
     }
@@ -211,7 +211,7 @@ export async function getChatById({ id }: { id: string }) {
 export async function saveMessages({
   messages,
 }: {
-  messages: Array<DBMessage>;
+  messages: Array<Message>;
 }) {
   try {
     return await db.insert(message).values(messages);
@@ -225,8 +225,8 @@ export async function getMessagesByChatId({ id }: { id: string }) {
     return await db
       .select()
       .from(message)
-      .where(eq(message.chatId, id))
-      .orderBy(asc(message.createdAt));
+      .where(eq(message.chat_id, id))
+      .orderBy(asc(message.created_at));
   } catch (error) {
     throw new ChatSDKError(
       'bad_request:database',
@@ -248,18 +248,18 @@ export async function voteMessage({
     const [existingVote] = await db
       .select()
       .from(vote)
-      .where(and(eq(vote.messageId, messageId)));
+      .where(and(eq(vote.message_id, messageId)));
 
     if (existingVote) {
       return await db
         .update(vote)
-        .set({ isUpvoted: type === 'up' })
-        .where(and(eq(vote.messageId, messageId), eq(vote.chatId, chatId)));
+        .set({ is_upvoted: type === 'up' })
+        .where(and(eq(vote.message_id, messageId), eq(vote.chat_id, chatId)));
     }
     return await db.insert(vote).values({
-      chatId,
-      messageId,
-      isUpvoted: type === 'up',
+      chat_id: chatId,
+      message_id: messageId,
+      is_upvoted: type === 'up',
     });
   } catch (error) {
     throw new ChatSDKError('bad_request:database', 'Failed to vote message');
@@ -268,7 +268,7 @@ export async function voteMessage({
 
 export async function getVotesByChatId({ id }: { id: string }) {
   try {
-    return await db.select().from(vote).where(eq(vote.chatId, id));
+    return await db.select().from(vote).where(eq(vote.chat_id, id));
   } catch (error) {
     throw new ChatSDKError(
       'bad_request:database',
@@ -298,8 +298,8 @@ export async function saveDocument({
         title,
         kind,
         content,
-        userId,
-        createdAt: new Date(),
+        user_id: userId,
+        created_at: new Date(),
       })
       .returning();
   } catch (error) {
@@ -313,7 +313,7 @@ export async function getDocumentsById({ id }: { id: string }) {
       .select()
       .from(document)
       .where(eq(document.id, id))
-      .orderBy(asc(document.createdAt));
+      .orderBy(asc(document.created_at));
 
     return documents;
   } catch (error) {
@@ -330,7 +330,7 @@ export async function getDocumentById({ id }: { id: string }) {
       .select()
       .from(document)
       .where(eq(document.id, id))
-      .orderBy(desc(document.createdAt));
+      .orderBy(desc(document.created_at));
 
     return selectedDocument;
   } catch (error) {
@@ -353,14 +353,14 @@ export async function deleteDocumentsByIdAfterTimestamp({
       .delete(suggestion)
       .where(
         and(
-          eq(suggestion.documentId, id),
-          gt(suggestion.documentCreatedAt, timestamp),
+          eq(suggestion.document_id, id),
+          gt(suggestion.document_created_at, timestamp),
         ),
       );
 
     return await db
       .delete(document)
-      .where(and(eq(document.id, id), gt(document.createdAt, timestamp)))
+      .where(and(eq(document.id, id), gt(document.created_at, timestamp)))
       .returning();
   } catch (error) {
     throw new ChatSDKError(
@@ -394,7 +394,7 @@ export async function getSuggestionsByDocumentId({
     return await db
       .select()
       .from(suggestion)
-      .where(and(eq(suggestion.documentId, documentId)));
+      .where(and(eq(suggestion.document_id, documentId)));
   } catch (error) {
     throw new ChatSDKError(
       'bad_request:database',
@@ -426,7 +426,7 @@ export async function deleteMessagesByChatIdAfterTimestamp({
       .select({ id: message.id })
       .from(message)
       .where(
-        and(eq(message.chatId, chatId), gte(message.createdAt, timestamp)),
+        and(eq(message.chat_id, chatId), gte(message.created_at, timestamp)),
       );
 
     const messageIds = messagesToDelete.map((message) => message.id);
@@ -435,13 +435,13 @@ export async function deleteMessagesByChatIdAfterTimestamp({
       await db
         .delete(vote)
         .where(
-          and(eq(vote.chatId, chatId), inArray(vote.messageId, messageIds)),
+          and(eq(vote.chat_id, chatId), inArray(vote.message_id, messageIds)),
         );
 
       return await db
         .delete(message)
         .where(
-          and(eq(message.chatId, chatId), inArray(message.id, messageIds)),
+          and(eq(message.chat_id, chatId), inArray(message.id, messageIds)),
         );
     }
   } catch (error) {
@@ -481,11 +481,11 @@ export async function getMessageCountByUserId({
     const [stats] = await db
       .select({ count: count(message.id) })
       .from(message)
-      .innerJoin(chat, eq(message.chatId, chat.id))
+      .innerJoin(chat, eq(message.chat_id, chat.id))
       .where(
         and(
-          eq(chat.userId, id),
-          gte(message.createdAt, twentyFourHoursAgo),
+          eq(chat.user_id, id),
+          gte(message.created_at, twentyFourHoursAgo),
           eq(message.role, 'user'),
         ),
       )
@@ -510,7 +510,7 @@ export async function createStreamId({
   try {
     await db
       .insert(stream)
-      .values({ id: streamId, chatId, createdAt: new Date() });
+      .values({ id: streamId, chat_id: chatId, created_at: new Date() });
   } catch (error) {
     throw new ChatSDKError(
       'bad_request:database',
@@ -524,8 +524,8 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
     const streamIds = await db
       .select({ id: stream.id })
       .from(stream)
-      .where(eq(stream.chatId, chatId))
-      .orderBy(asc(stream.createdAt))
+      .where(eq(stream.chat_id, chatId))
+      .orderBy(asc(stream.created_at))
       .execute();
 
     return streamIds.map(({ id }) => id);

@@ -6,6 +6,7 @@ import { generateUUID } from '@/lib/utils';
 import { DataStreamHandler } from '@/components/data-stream-handler';
 import { auth } from '../(auth)/auth';
 import { redirect } from 'next/navigation';
+import { Session } from 'next-auth';
 
 export default async function Page() {
   const session = await auth();
@@ -13,6 +14,14 @@ export default async function Page() {
   if (!session) {
     redirect('/api/auth/guest');
   }
+
+  // const session: Session = {
+  //   user: {
+  //     id: '00000000000',
+  //     type: 'regular'
+  //   },
+  //   expires: new Date().toISOString(),
+  // }
 
   const id = generateUUID();
 
